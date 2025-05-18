@@ -1,0 +1,103 @@
+Mail Merge Splitter - Sequential Processing
+it split each to an individual Word file.
+
+```
+Sub SplitMailMergeIntoSeparateDocumentsOptimized()
+ Dim mainDoc As Document
+ Dim newDoc As Document
+ Dim recordCount As Integer
+ Dim currentRecord As Integer
+ Dim basePath As String
+ Dim fileName As String
+ Dim nameField As String
+ Dim personName As String
+ Dim invalidChars As String
+ Dim i As Integer
+ 
+ ' Set reference to the active document
+ Set mainDoc = ActiveDocument
+ 
+ ' Define the mail merge field name to use for filenames
+ nameField = "fnames"
+ 
+ ' Invalid characters for filenames
+ invalidChars = "/\:*?""<>|"
+ 
+ ' Check if we're in a mail merge document
+ If mainDoc.MailMerge.State = wdMainAndDataSource Then
+   ' Get total records
+   recordCount = mainDoc.MailMerge.DataSource.recordCount
+   
+   ' Ask for base path to save files
+   basePath = InputBox("Enter the folder path to save individual files:", "Save Location", "C:\MailMerge\")
+   
+   ' Ensure the path ends with a backslash
+   If Right(basePath, 1) <> "\" Then basePath = basePath & "\"
+   
+   ' Create folder if it doesn't exist
+   On Error Resume Next
+   MkDir basePath
+   On Error GoTo 0
+   
+   ' Start with the first record
+   mainDoc.MailMerge.DataSource.ActiveRecord = wdFirstRecord
+   
+   ' Process all records sequentially without going back to start
+   For currentRecord = 1 To recordCount
+     ' Get the person name for current record
+     On Error Resume Next
+     personName = mainDoc.MailMerge.DataSource.DataFields(nameField).Value
+     If Err.Number <> 0 Then
+       personName = "Record" & Format(currentRecord, "000")
+       MsgBox "Field '" & nameField & "' not found. Using '" & personName & "' instead.", vbExclamation
+       On Error GoTo 0
+     End If
+     On Error GoTo 0
+     
+     ' Clean the name for valid filename
+     For i = 1 To Len(invalidChars)
+       personName = Replace(personName, Mid(invalidChars, i, 1), "_")
+     Next i
+     
+     ' Remove leading/trailing spaces
+     personName = Trim(personName)
+     
+     ' If name is empty, use record number
+     If personName = "" Then
+       personName = "Record" & Format(currentRecord, "000")
+     End If
+     
+     ' Create document for current record
+     With mainDoc.MailMerge
+       .ViewMailMergeFieldCodes = False
+       .Destination = wdSendToNewDocument
+       .DataSource.FirstRecord = currentRecord
+       .DataSource.LastRecord = currentRecord
+       .Execute False
+     End With
+     
+     ' Get reference to the newly created document
+     Set newDoc = ActiveDocument
+     
+     ' Generate filename using the person's name
+     fileName = basePath & personName & ".docx"
+     
+     ' Save the document
+     newDoc.SaveAs2 fileName
+     
+     ' Close the new document
+     newDoc.Close SaveChanges:=True
+     Set newDoc = Nothing
+     
+     ' Move to next record if not at the last one
+     If currentRecord < recordCount Then
+       mainDoc.MailMerge.DataSource.ActiveRecord = wdNextRecord
+     End If
+   Next currentRecord
+   
+   MsgBox "Successfully created " & recordCount & " separate documents in " & basePath, vbInformation
+ Else
+   MsgBox "This document is not set up for mail merge.", vbExclamation
+ End If
+End Sub
+```
